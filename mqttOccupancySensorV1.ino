@@ -91,6 +91,7 @@ void setup(){
 
   Serial.print("Connecting to MQTT... ");
   bMqtt = connectMQTT();
+  //test comment
 }
 
 void loop(){
