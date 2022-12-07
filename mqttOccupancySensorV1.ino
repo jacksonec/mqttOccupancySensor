@@ -25,6 +25,7 @@ char* charTopicLight = (char*) strTopicLight.c_str();
 String strTopicOccupancy = strUniqueID + "/occupancy";
 char* charTopicOccupancy = (char*) strTopicOccupancy.c_str();
 bool bMqtt = false;
+long lngLastPub = millis();
 
 struct objRom{
    char charIPAddress[15];
@@ -137,19 +138,19 @@ void loop(){
 
     long lngNow = millis();
     //if sensor start is before now
-    Serial.print("Now: ");
+    /*Serial.print("Now: ");
     Serial.println(lngNow);
     Serial.print("Start: ");
     Serial.println(objOccupancy.lngStartTime);
     Serial.print("End: ");
-    Serial.println(objOccupancy.lngEndTime);
+    Serial.println(objOccupancy.lngEndTime);*/
 
     if (lngNow < objSound.lngEndTime && lngNow > objSound.lngStartTime){
       objSound.intRawSensor = objSound.intRawSensor + digitalRead(D1);
-      Serial.print("Sound Read: ");
+      /*Serial.print("Sound Read: ");
       Serial.print(objSound.intRawSensor);
       Serial.print("/");
-      Serial.println(objSound.intThreshold);
+      Serial.println(objSound.intThreshold);*/
       if (objSound.intRawSensor > objSound.intThreshold){
         objSound.lngStartTime = objRomData.intResetTime * 1000 + millis();
         objSound.lngEndTime = objRomData.intListenTime * 1000 + objSound.lngStartTime;
@@ -167,10 +168,10 @@ void loop(){
 
     if (lngNow < objMotion.lngEndTime && lngNow > objMotion.lngStartTime){
       objMotion.intRawSensor = objMotion.intRawSensor + digitalRead(D3);
-      Serial.print("Motion Read: ");
+      /*Serial.print("Motion Read: ");
       Serial.print(objMotion.intRawSensor);
       Serial.print("/");
-      Serial.println(objMotion.intThreshold);
+      Serial.println(objMotion.intThreshold);*/
       if (objMotion.intRawSensor > objMotion.intThreshold){
         objMotion.lngStartTime = objRomData.intResetTime * 1000 + millis();
         objMotion.lngEndTime = objRomData.intListenTime * 1000 + objMotion.lngStartTime;
@@ -196,7 +197,14 @@ void loop(){
       pubOccupancy.publish(0);
     }
     
+    if (lngLastPub + 60000 < lngNow){
+      pubLight.publish(analogRead(A0));
+      lngLastPub = lngNow;
+    }
+    
+
     delay(50);
+
   }
 }
 
