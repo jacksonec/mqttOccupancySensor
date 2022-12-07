@@ -4,7 +4,7 @@
 #include <EEPROM.h>
 #include <ESP8266WebServer.h>
 
-#define Version "1.3"
+#define Version "1.4"
 #define Product "BFE Occupancy Sensor"
 #define HTMLElements 8
 
@@ -43,8 +43,19 @@ struct objHtml{
   String strFieldValue;
 };
 
+struct objSensor{
+  long lngStartTime = 0;
+  long lngEndTime;
+  long lngResetTime;
+  int intRawSensor = 0;
+  int intThreshold = 0;
+};
+
 objRom objRomData;
 objHtml objHtmlData[HTMLElements];
+objSensor objSound;
+objSensor objMotion;
+objSensor objOccupancy;
 Adafruit_MQTT_Client *mqtt;
 
 void setup(){
@@ -53,6 +64,7 @@ void setup(){
   Serial.begin(115200);
   pinMode(D1, INPUT);
   loadEEPROM();
+
   mqtt = new Adafruit_MQTT_Client(&espClient, objRomData.charIPAddress, objRomData.intMqttPort, "", "", "");
 
   //Connect to Wifi
@@ -91,11 +103,29 @@ void setup(){
 
   Serial.print("Connecting to MQTT... ");
   bMqtt = connectMQTT();
-  //test comment
+  long lngNow = millis();
+  long lngListen = objRomData.intListenTime * 1000;
+  int intDelay = 50;
+  objSound.lngStartTime = lngNow;
+  objMotion.lngStartTime = lngNow;
+  objOccupancy.lngStartTime = lngNow;
+  objSound.lngEndTime = objSound.lngStartTime + lngListen;
+  objMotion.lngEndTime = objMotion.lngStartTime + lngListen;
+  objOccupancy.lngEndTime = objOccupancy.lngStartTime + lngListen;
+  objSound.intThreshold = getThreshold(intDelay, objRomData.intListenTime,objRomData.fltSoundSensitivity);
+  objMotion.intThreshold = getThreshold(intDelay, objRomData.intListenTime,objRomData.fltMotionSensitivity);
+}
+
+float getThreshold(int aintDelay, int aintSeconds, float afltSensitivity){
+  float fltThreshold1 = (aintSeconds*1000)/aintDelay;
+  float fltPct = 1 - afltSensitivity;
+  int fltThreshold = fltThreshold1*fltPct;
+  return fltThreshold;
 }
 
 void loop(){
   if (digitalRead(D2)){
+    //Serial.println("Server mode");
     server.handleClient();
   }
   else{
@@ -104,24 +134,69 @@ void loop(){
     Adafruit_MQTT_Publish pubLight(mqtt, charTopicLight);
     Adafruit_MQTT_Publish pubOccupancy(mqtt, charTopicOccupancy);
 
-    int intTemp = getLight(A0);
-    Serial.println("geting noise");
-    int intSound = getOccupancy(D1, objRomData.intListenTime, objRomData.fltSoundSensitivity);
-    int intMotion = getOccupancy(D3, objRomData.intListenTime, objRomData.fltMotionSensitivity);
-    if (bMqtt){
-      pubNoise.publish(intSound);
-      pubMotion.publish(intMotion);
-      pubLight.publish(getLight(A0));
-    }
-    if (intSound == 1|intMotion == 1){
-      pubOccupancy.publish(1);
-      delay(objRomData.intResetTime * 1000);
-      //delay(1000);
+
+    long lngNow = millis();
+    //if sensor start is before now
+    Serial.print("Now: ");
+    Serial.println(lngNow);
+    Serial.print("Start: ");
+    Serial.println(objOccupancy.lngStartTime);
+    Serial.print("End: ");
+    Serial.println(objOccupancy.lngEndTime);
+
+    if (lngNow < objSound.lngEndTime && lngNow > objSound.lngStartTime){
+      objSound.intRawSensor = objSound.intRawSensor + digitalRead(D1);
+      Serial.print("Sound Read: ");
+      Serial.print(objSound.intRawSensor);
+      Serial.print("/");
+      Serial.println(objSound.intThreshold);
+      if (objSound.intRawSensor > objSound.intThreshold){
+        objSound.lngStartTime = objRomData.intResetTime * 1000 + millis();
+        objSound.lngEndTime = objRomData.intListenTime * 1000 + objSound.lngStartTime;
+        pubNoise.publish(1);
+        objSound.intRawSensor = 0;
+      }
     }
     else{
+      if (lngNow > objSound.lngEndTime){
+        pubNoise.publish(0);
+        objSound.intRawSensor = 0;
+        objSound.lngEndTime = objRomData.intListenTime * 1000 + lngNow;
+      }
+    }    
+
+    if (lngNow < objMotion.lngEndTime && lngNow > objMotion.lngStartTime){
+      objMotion.intRawSensor = objMotion.intRawSensor + digitalRead(D3);
+      Serial.print("Motion Read: ");
+      Serial.print(objMotion.intRawSensor);
+      Serial.print("/");
+      Serial.println(objMotion.intThreshold);
+      if (objMotion.intRawSensor > objMotion.intThreshold){
+        objMotion.lngStartTime = objRomData.intResetTime * 1000 + millis();
+        objMotion.lngEndTime = objRomData.intListenTime * 1000 + objMotion.lngStartTime;
+        pubMotion.publish(1);
+        objMotion.intRawSensor = 0;
+      }
+    }
+    else{
+      if (lngNow > objMotion.lngEndTime){
+        pubMotion.publish(0);
+        objMotion.intRawSensor = 0;
+        objMotion.lngEndTime = objRomData.intListenTime * 1000 + lngNow;
+      }
+    }
+
+    if (objSound.lngStartTime > lngNow && objMotion.lngStartTime > lngNow){
+      objOccupancy.lngStartTime = lngNow;
+      pubOccupancy.publish(1);
+      objOccupancy.lngEndTime = lngNow + objRomData.intResetTime * 1000;
+    }
+
+    if(objOccupancy.lngEndTime < lngNow){
       pubOccupancy.publish(0);
     }
-    delay(500);
+    
+    delay(50);
   }
 }
 
