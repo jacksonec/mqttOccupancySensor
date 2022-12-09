@@ -3,17 +3,8 @@
 #include "Adafruit_MQTT_Client.h"
 #include <EEPROM.h>
 #include <ESP8266WebServer.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Wire.h>
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 32 // OLED display height, in pixels
-
-// Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
-
-#define Version "1.6"
+#define Version "1.51"
 #define Product "BFE Occupancy Sensor"
 #define HTMLElements 8
 
@@ -23,6 +14,7 @@ const int intMotionPin(D5);
 const int intSwitchPin(D6);
 
 //Setup switch pin
+const int intSetupSwitch = D2; //if on, we're in setup, if off, we're running
 //Generate unique ID (BFE-<macAddress>)
 String strUniqueID = "BFE-" + String(WiFi.macAddress());
 
@@ -39,9 +31,6 @@ String strTopicOccupancy = strUniqueID + "/occupancy";
 char* charTopicOccupancy = (char*) strTopicOccupancy.c_str();
 bool bMqtt = false;
 long lngLastPub = millis();
-String strScreenMessage[5];
-int intScreenMessage = 0;
-long lngLastDisplay = 0;
 
 struct objRom{
    char charIPAddress[15];
@@ -76,8 +65,8 @@ objSensor objMotion;
 objSensor objOccupancy;
 Adafruit_MQTT_Client *mqtt;
 
-
 void setup(){
+<<<<<<< HEAD
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
     for(;;);
   }
@@ -90,6 +79,8 @@ void setup(){
   strScreenMessage[5] = "Init Settings...";
 
   PrintDisplay(String(Product) + " v" + String(Version), 1);
+=======
+>>>>>>> parent of 2dc2b92 (Update mqttOccupancySensorV1.ino)
   bool bWifi = false;
   //Serial monitor on
   Serial.begin(115200);
@@ -106,8 +97,6 @@ void setup(){
   delay(2500);
   if (!bWifi){
     Serial.println("WiFi Connect Failed. Starting AP Mode.");
-    PrintDisplay("No wifi, starting AP mode", 1);
-    delay(1000);
 
     String strTempSSID = strUniqueID + "_Setup";
     const char* ssidAP = strTempSSID.c_str();  // BFE-<mac>_Setup
@@ -115,9 +104,6 @@ void setup(){
     IPAddress local_ip(192,168,1,1);
     IPAddress gateway(192,168,1,1);
     IPAddress subnet(255,255,255,0);
-
-    PrintDisplay("SSID: " + strTempSSID + "\r\nIP: 192.168.1.1", 1);
-    delay(1000);
 
     Serial.println("Starting Access Point");
     WiFi.softAP(ssidAP);
@@ -127,10 +113,7 @@ void setup(){
   if (digitalRead(intSwitchPin)){
 
     Serial.println("Starting Web Server.");
-    PrintDisplay("Web Server Mode", 1);
-    delay(3000);
-    
-    PrintDisplay("Server at:\r\n" + WiFi.localIP().toString(), 1);
+      
     //connection event
     server.on("/", handle_OnConnect);
     //form submit
@@ -197,7 +180,10 @@ void loop(){
         objSound.lngEndTime = objRomData.intListenTime * 1000 + objSound.lngStartTime;
         pubNoise.publish(1);
         objSound.intRawSensor = 0;
+<<<<<<< HEAD
         strScreenMessage[1] = "Sound Detected";
+=======
+>>>>>>> parent of 2dc2b92 (Update mqttOccupancySensorV1.ino)
       }
     }
     else{
@@ -205,7 +191,10 @@ void loop(){
         pubNoise.publish(0);
         objSound.intRawSensor = 0;
         objSound.lngEndTime = objRomData.intListenTime * 1000 + lngNow;
+<<<<<<< HEAD
         strScreenMessage[1] = "No Sound Detected";
+=======
+>>>>>>> parent of 2dc2b92 (Update mqttOccupancySensorV1.ino)
       }
     }    
 
@@ -220,7 +209,10 @@ void loop(){
         objMotion.lngEndTime = objRomData.intListenTime * 1000 + objMotion.lngStartTime;
         pubMotion.publish(1);
         objMotion.intRawSensor = 0;
+<<<<<<< HEAD
         strScreenMessage[2] = "Motion Detected";
+=======
+>>>>>>> parent of 2dc2b92 (Update mqttOccupancySensorV1.ino)
       }
     }
     else{
@@ -228,7 +220,10 @@ void loop(){
         pubMotion.publish(0);
         objMotion.intRawSensor = 0;
         objMotion.lngEndTime = objRomData.intListenTime * 1000 + lngNow;
+<<<<<<< HEAD
         strScreenMessage[2] = "No Motion Detected";
+=======
+>>>>>>> parent of 2dc2b92 (Update mqttOccupancySensorV1.ino)
       }
     }
 
@@ -249,21 +244,18 @@ void loop(){
       objOccupancy.lngStartTime = lngNow;
       pubOccupancy.publish(1);
       objOccupancy.lngEndTime = lngNow + objRomData.intResetTime * 1000;
-      strScreenMessage[3] = "Occupancy On";
     }
 
     if(objOccupancy.lngEndTime < lngNow){
       pubOccupancy.publish(0);
-      strScreenMessage[3] = "Occupancy Off";
     }
     
     if (lngLastPub + 60000 < lngNow){
-      int intLight = analogRead(intLightPin);
-      pubLight.publish(intLightPin);
+      pubLight.publish(analogRead(intLightPin));
       lngLastPub = lngNow;
-      strScreenMessage[4] = "Light: " + String(intLightPin);
     }
     
+<<<<<<< HEAD
     strScreenMessage[0] = "IP: " + WiFi.localIP().toString();
     strScreenMessage[5] = "M/S: " + String(objRomData.fltMotionSensitivity*100);
     strScreenMessage[5] = strScreenMessage[5] + "%/";
@@ -277,6 +269,9 @@ void loop(){
       intScreenMessage++;
       if (intScreenMessage == 6){intScreenMessage = 0;}
     }
+=======
+
+>>>>>>> parent of 2dc2b92 (Update mqttOccupancySensorV1.ino)
     delay(50);
 
   }
@@ -524,15 +519,4 @@ bool connectMQTT(){
       bReturn = false;
     }
   return bReturn;
-}
-
-
-void PrintDisplay(String astrMessage, int aintSize)
-{
-  display.clearDisplay();
-  display.setTextSize(aintSize);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 10);
-  display.println(astrMessage);
-  display.display(); 
 }
