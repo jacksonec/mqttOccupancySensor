@@ -87,6 +87,7 @@ void setup(){
   strScreenMessage[2] = "Init Motion...";
   strScreenMessage[3] = "Init Occupancy...";
   strScreenMessage[4] = "Init Light...";
+  strScreenMessage[5] = "Init Settings...";
 
   PrintDisplay(String(Product) + " v" + String(Version), 1);
   bool bWifi = false;
@@ -196,7 +197,7 @@ void loop(){
         objSound.lngEndTime = objRomData.intListenTime * 1000 + objSound.lngStartTime;
         pubNoise.publish(1);
         objSound.intRawSensor = 0;
-        strScreenMessage[1] = "Sound";
+        strScreenMessage[1] = "Sound Detected";
       }
     }
     else{
@@ -204,7 +205,7 @@ void loop(){
         pubNoise.publish(0);
         objSound.intRawSensor = 0;
         objSound.lngEndTime = objRomData.intListenTime * 1000 + lngNow;
-        strScreenMessage[1] = "No Sound";
+        strScreenMessage[1] = "No Sound Detected";
       }
     }    
 
@@ -219,7 +220,7 @@ void loop(){
         objMotion.lngEndTime = objRomData.intListenTime * 1000 + objMotion.lngStartTime;
         pubMotion.publish(1);
         objMotion.intRawSensor = 0;
-        strScreenMessage[2] = "Motion";
+        strScreenMessage[2] = "Motion Detected";
       }
     }
     else{
@@ -227,7 +228,7 @@ void loop(){
         pubMotion.publish(0);
         objMotion.intRawSensor = 0;
         objMotion.lngEndTime = objRomData.intListenTime * 1000 + lngNow;
-        strScreenMessage[2] = "No Motion";
+        strScreenMessage[2] = "No Motion Detected";
       }
     }
 
@@ -264,12 +265,17 @@ void loop(){
     }
     
     strScreenMessage[0] = "IP: " + WiFi.localIP().toString();
+    strScreenMessage[5] = "M/S: " + String(objRomData.fltMotionSensitivity*100);
+    strScreenMessage[5] = strScreenMessage[5] + "%/";
+    strScreenMessage[5] = strScreenMessage[5] + String(objRomData.fltMotionSensitivity*100) + "%\r\n";
+    strScreenMessage[5] = strScreenMessage[5] + "Listen/Reset: ";
+    strScreenMessage[5] = strScreenMessage[5] + String(objRomData.intListenTime) + "/" + String(objRomData.intResetTime);
 
     if (lngLastDisplay < lngNow){
       PrintDisplay(strScreenMessage[intScreenMessage], 1);
       lngLastDisplay = lngLastDisplay + 3000;
       intScreenMessage++;
-      if (intScreenMessage == 5){intScreenMessage = 0;}
+      if (intScreenMessage == 6){intScreenMessage = 0;}
     }
     delay(50);
 
