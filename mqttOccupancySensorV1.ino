@@ -4,9 +4,14 @@
 #include <EEPROM.h>
 #include <ESP8266WebServer.h>
 
-#define Version "1.4"
+#define Version "1.51"
 #define Product "BFE Occupancy Sensor"
 #define HTMLElements 8
+
+const int intLightPin(A0);
+const int intSoundPin(D7);
+const int intMotionPin(D5);
+const int intSwitchPin(D6);
 
 //Setup switch pin
 const int intSetupSwitch = D2; //if on, we're in setup, if off, we're running
@@ -36,6 +41,7 @@ struct objRom{
    int intResetTime;
    float fltSoundSensitivity;
    float fltMotionSensitivity;
+   int intSoundMotionBoth;
 };
 
 struct objHtml{
@@ -63,7 +69,10 @@ void setup(){
   bool bWifi = false;
   //Serial monitor on
   Serial.begin(115200);
-  pinMode(D1, INPUT);
+  pinMode(intSwitchPin, INPUT);
+  pinMode(intSoundPin, INPUT);
+  pinMode(intMotionPin, INPUT);
+  pinMode(intLightPin, INPUT);
   loadEEPROM();
 
   mqtt = new Adafruit_MQTT_Client(&espClient, objRomData.charIPAddress, objRomData.intMqttPort, "", "", "");
@@ -86,7 +95,7 @@ void setup(){
     WiFi.softAPConfig(local_ip, gateway, subnet);
     delay(100);
   }
-  if (digitalRead(D2)){
+  if (digitalRead(intSwitchPin)){
 
     Serial.println("Starting Web Server.");
       
@@ -125,7 +134,7 @@ float getThreshold(int aintDelay, int aintSeconds, float afltSensitivity){
 }
 
 void loop(){
-  if (digitalRead(D2)){
+  if (digitalRead(intSwitchPin)){
     //Serial.println("Server mode");
     server.handleClient();
   }
@@ -146,7 +155,7 @@ void loop(){
     Serial.println(objOccupancy.lngEndTime);
 
     if (lngNow < objSound.lngEndTime && lngNow > objSound.lngStartTime){
-      objSound.intRawSensor = objSound.intRawSensor + digitalRead(D1);
+      objSound.intRawSensor = objSound.intRawSensor + digitalRead(intSoundPin);
       Serial.print("Sound Read: ");
       Serial.print(objSound.intRawSensor);
       Serial.print("/");
@@ -167,7 +176,7 @@ void loop(){
     }    
 
     if (lngNow < objMotion.lngEndTime && lngNow > objMotion.lngStartTime){
-      objMotion.intRawSensor = objMotion.intRawSensor + digitalRead(D3);
+      objMotion.intRawSensor = objMotion.intRawSensor + digitalRead(intMotionPin);
       Serial.print("Motion Read: ");
       Serial.print(objMotion.intRawSensor);
       Serial.print("/");
@@ -187,7 +196,20 @@ void loop(){
       }
     }
 
-    if (objSound.lngStartTime > lngNow && objMotion.lngStartTime > lngNow){
+    bool bCriteria = false;
+    switch(objRomData.intSoundMotionBoth){
+      case 0:
+        bCriteria = objSound.lngStartTime > lngNow;
+        break;
+      case 1:
+        bCriteria = objMotion.lngStartTime > lngNow;
+        break;
+      default:
+        bCriteria = objSound.lngStartTime > lngNow && objMotion.lngStartTime > lngNow;
+    }
+
+
+    if (bCriteria){
       objOccupancy.lngStartTime = lngNow;
       pubOccupancy.publish(1);
       objOccupancy.lngEndTime = lngNow + objRomData.intResetTime * 1000;
@@ -198,7 +220,7 @@ void loop(){
     }
     
     if (lngLastPub + 60000 < lngNow){
-      pubLight.publish(analogRead(A0));
+      pubLight.publish(analogRead(intLightPin));
       lngLastPub = lngNow;
     }
     
@@ -216,37 +238,6 @@ void loadEEPROM(){
 int getLight(int aintPin){
   int intReturn = analogRead(aintPin);
   Serial.println(intReturn);
-  return intReturn;
-}
-
-int getOccupancy(int aintPin, int aintSeconds, float afltSensitivity)
-{
-  long lngNow = millis();
-  long lngThen = 0;
-  int intReturn = 0;
-  int intRead = 0;
-  int intDelay = 50;
-  float fltThreshold1 = (aintSeconds*1000)/intDelay;
-  float fltPct = 1 - afltSensitivity;
-  int fltThreshold = fltThreshold1*fltPct;
-  Serial.println(fltThreshold1);
-  Serial.println(fltPct);
-  Serial.println(fltThreshold);
-  while (lngThen < (lngNow + (aintSeconds * 1000))){
-    intRead = intRead + digitalRead(aintPin);
-    Serial.println(String(intRead) + "/" + String(fltThreshold));
-    if (intRead > fltThreshold){
-      intReturn = 1;
-      break;
-    }
-    else{
-      intReturn = 0;
-    }
-    delay(intDelay);
-    lngThen = millis();
-    //Serial.println(intReturn);
-  }
-
   return intReturn;
 }
 
@@ -342,18 +333,6 @@ void buildHtmlData(){
 String SendHTML(){
   buildHtmlData();
 
-  /*
-  String strIPaddress = objRomData.charIPAddress;
-  String strSSID = objRomData.charSSID;
-  String strPassword = objRomData.charPassword;
-  int intMqttPort = objRomData.intMqttPort;
-  int intSleepTimeS = objRomData.intSleepTime;
-  int intListenTime = objRomData.intListenTime;
-  int intSensitivity = objRomData.fltSensitivity*100;
-
-  strPassword = "\"" + strPassword + "\"";
-  */
-
   String ptr = "<!DOCTYPE html> <html>\n";
   ptr +="<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, user-scalable=no\">\n";
   ptr +="<title>Device Settings</title>\n";
@@ -375,6 +354,29 @@ String SendHTML(){
     ptr += "<br>";
   }
 
+  String strSound = "";
+  String strMotion = "";
+  String strBoth = "";
+
+  switch(objRomData.intSoundMotionBoth){
+    case 0:
+      strSound = "checked";
+      break;
+    case 1:
+      strMotion = "checked";
+      break;
+    default:
+      strBoth = "checked";
+  }
+
+  ptr += "Occupancy based on:<br>";
+  ptr += "<input type=\"radio\" name=\"SoundMotionBoth\" value=\"2\" id=\"both\" " + strBoth + ">";
+  ptr += "<label for=\"both\">Both</label><br>";
+  ptr += "<input type=\"radio\" name=\"SoundMotionBoth\" value=\"0\" id=\"sound\" " + strSound + ">";
+  ptr += "<label for=\"sound\">Sound</label><br>";
+  ptr += "<input type=\"radio\" name=\"SoundMotionBoth\" value=\"1\" id=\"motion\" " + strMotion + ">";
+  ptr += "<label for=\"motion\">Motion</label><br>";
+
   ptr +="  <br>";
   ptr +="  <input type=\"submit\" value=\"Submit\">";
   ptr +="  <br><br>";
@@ -386,7 +388,7 @@ String SendHTML(){
   ptr += strUniqueID + "/light<br>";
   ptr += strUniqueID + "/occupancy<br>";
   ptr += strUniqueID + "/motion<br>";
-;
+
   ptr +="</form>";
   ptr +="</body>";
   ptr +="</html>";
@@ -401,6 +403,9 @@ void handleForm() {
   //password
   String strPass = server.arg("clientPass");
   strPass.toCharArray(objRomData.charPassword, 63);
+
+  Serial.println(server.arg("SoundMotionBoth"));
+  objRomData.intSoundMotionBoth =  server.arg("SoundMotionBoth").toInt();
 
   //mqtt IP
   server.arg("mqttIP").toCharArray(objRomData.charIPAddress, 15);
