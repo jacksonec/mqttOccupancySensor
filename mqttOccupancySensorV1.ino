@@ -256,11 +256,11 @@ void loop(){
       strScreenMessage[3] = "Occupancy Off";
     }
     
-    if (lngLastPub + 60000 < lngNow){
+    if (lngLastPub + 5000 < lngNow){
       int intLight = analogRead(intLightPin);
-      pubLight.publish(intLightPin);
+      pubLight.publish(intLight);
       lngLastPub = lngNow;
-      strScreenMessage[4] = "Light: " + String(intLightPin);
+      strScreenMessage[4] = "Light: " + String(intLight);
     }
     
     strScreenMessage[0] = "IP: " + WiFi.localIP().toString();
